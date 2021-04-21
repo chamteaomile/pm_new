@@ -1,6 +1,6 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-from database import Admin, User, Item
+from database import Item
 
 
 async def get_kb_menu_for_customer():
@@ -17,7 +17,6 @@ async def get_kb_menu_for_admin():
     inline_kb_menu = InlineKeyboardMarkup(row_width=1)
     inline_kb_menu.add(inline_btn_show_book, inline_btn_show_links)
     return inline_kb_menu
-
 
 
 async def get_kb_items_to_book():

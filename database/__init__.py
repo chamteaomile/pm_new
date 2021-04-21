@@ -1,4 +1,4 @@
-from .models import Admin, BaseModel, User, Item, db
+from .models import Admin, BaseModel, User, Item, Order, db
 
 
 __all__ = [
@@ -6,5 +6,6 @@ __all__ = [
     'BaseModel',
     'User',
     'Item',
+    'Order',
     'db'
 ]

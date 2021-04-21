@@ -1,7 +1,5 @@
 from typing import Set
 
-from datetime import datetime
-from sqlalchemy.sql import func
 from .base_model import BaseModel
 from .db import db
 
@@ -14,7 +12,6 @@ class User(BaseModel):
     telegram_id = db.Column(db.String(), nullable=True, comment='Telegram ID')
     weight = db.Column(db.String(), nullable=False, default='', server_default='', comment='User Weight')
     height = db.Column(db.String(), nullable=False, default='', server_default='', comment='User Height')
-    order = db.Column(db.String(), nullable=False, default='', server_default='', comment='User Last Order')
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
