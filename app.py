@@ -6,7 +6,7 @@ from database import db
 from telegram_bot import TelegramBotService
 
 
-async def main(config: Config, loop: asyncio.AbstractEventLoop):  # pylint: disable=too-many-locals
+async def main(config: Config, loop: asyncio.AbstractEventLoop):
     logging.info('%s started', config.app_name)
     logging.debug('Open PostgreSQL connection %s', config.pg_connection)
     await db.set_bind(config.pg_connection, loop=loop)

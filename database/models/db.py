@@ -6,26 +6,22 @@ from decimal import Decimal
 from enum import Enum
 from typing import Dict
 
-import msgpack
-import msgpack_numpy
-import numpy
 from ddtrace import tracer
 from gino.crud import CRUDModel as _CRUDModel
 from gino.dialects.asyncpg import AsyncpgDialect
 from gino.dialects.asyncpg import DBAPICursor as _DBAPICursor
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.engine.interfaces import Dialect
 from sqlalchemy.types import TypeDecorator
 
 
 if 'sanic' in sys.modules:
-    from gino.ext.sanic import Gino as _Gino  # pylint: disable=import-error
+    from gino.ext.sanic import Gino as _Gino
 else:
     from gino import Gino as _Gino
 
 
 class DBAPICursor(_DBAPICursor):
-    async def async_execute(self, query, timeout, args, limit=0, many=False):  # pylint: disable=too-many-arguments
+    async def async_execute(self, query, timeout, args, limit=0, many=False):
         with tracer.trace('postgres.query', service='postgres') as span:
             span.set_tag('query', query)
             span.set_tag('args', [str(arg)[:100] for arg in args])
@@ -36,21 +32,14 @@ class DBAPICursor(_DBAPICursor):
 AsyncpgDialect.cursor_cls = DBAPICursor
 
 
-class NDArray(TypeDecorator):  # pylint: disable=abstract-method
+class NDArray(TypeDecorator):
     impl = postgresql.BYTEA
-    python_type = numpy.ndarray
-
-    def process_bind_param(self, value: numpy.ndarray, dialect: Dialect) -> bytes:
-        return msgpack.packb(value, use_bin_type=True)
-
-    def process_result_value(self, value: bytes, dialect: Dialect) -> numpy.ndarray:
-        return msgpack.unpackb(value, use_list=False, raw=False)
 
 
 class CRUDModel(_CRUDModel):
     __hiden_keys__ = ()
 
-    def to_dict(self, del_hiden_keys: bool = True) -> Dict:  # pylint: disable=arguments-differ
+    def to_dict(self, del_hiden_keys: bool = True) -> Dict:
         data = {}
         for key in list(self.__dict__.get('__values__', {}).keys()) + list(self.__dict__.keys()):
             if key.startswith('_') or (del_hiden_keys and key in getattr(self, '__hiden_keys__', [])):
@@ -79,5 +68,4 @@ class Gino(_Gino):
     NDArray = NDArray
 
 
-msgpack_numpy.patch()
 db = Gino()

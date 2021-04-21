@@ -30,14 +30,13 @@ def logging_params(debug: bool = False) -> Dict:
                 'propagate': True
             },
             'aiogram': {'level': 'ERROR'},
-            'gino': {'level': 'ERROR'},
-            'ddtrace': {'level': 'CRITICAL'}
+            'gino': {'level': 'ERROR'}
         }
     }
 
 
 @dataclass(frozen=True)
-class Config:  # pylint: disable=too-many-instance-attributes
+class Config:
     pg_connection: str
     redis_connection: str
 
@@ -46,8 +45,6 @@ class Config:  # pylint: disable=too-many-instance-attributes
     app_name: str = app_name
     app_version: str = app_version
     logging_params: Dict = field(default_factory=logging_params)
-
-    ddtrace_hostname: str = 'localhost'
 
     develop: bool = True
     debug: bool = False

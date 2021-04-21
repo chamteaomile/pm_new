@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "pm_new"
+name = "another-try"
 version = "0.1.0"
 description = "Prokat Mokat bot"
 authors = ["chamteaomile <socutearr@gmail.com>"]

@@ -90,7 +90,7 @@ class TelegramBotService:
     async def _bot_start(self, message: Message):
         telegram_id = message.chat.id
 
-        check_admin = await Admin.query.where(Admin.telegram_id == str(message.chat.id)).gino.first()
+        check_admin = await Admin.query.where(Admin.telegram_id == str(telegram_id)).gino.first()
         if check_admin:
             await message.answer(f'Здравствуй, {check_admin.name}')
             await self._bot.send_message(telegram_id, 'Введите команду /menu посмотреть список доступных функций')
@@ -203,7 +203,7 @@ class TelegramBotService:
 
         inline_kb = await get_kb_order()
 
-        item_data = await Item.query.where(Item.data == call).gino.first()
+        item_data = await Item.query.where(Item.data == str(call)).gino.first()
         item_name = item_data.name
         item_price = item_data.price
 
@@ -225,8 +225,8 @@ class TelegramBotService:
         await self._bot.answer_callback_query(callback_query.id)
         await callback_query.message.edit_reply_markup(reply_markup=None)
 
-        right_order = await Order.query.where(Order.telegram_id == telegram_id)
-        user_data = await User.query.where(User.telegram_id == telegram_id)
+        right_order = await Order.query.where(Order.telegram_id == str(telegram_id)).gino.first()
+        user_data = await User.query.where(User.telegram_id == str(telegram_id)).gino.first()
 
         await self._bot.send_message(telegram_id, 'Заявка подана. Ожидайте звонка!')
         order_text = f"""
@@ -248,7 +248,7 @@ class TelegramBotService:
         await self._bot.send_message(telegram_id, 'Заявка сброшена.')
         await self._bot.send_message(telegram_id, 'Введите команду /menu посмотреть список доступных функций')
 
-        wrong_order = await Order.query.where(Order.telegram_id == telegram_id)
+        wrong_order = await Order.query.where(Order.telegram_id == str(telegram_id)).gino.first()
         wrong_order.delete()
 
         await state.finish()
