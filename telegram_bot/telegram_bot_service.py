@@ -135,7 +135,7 @@ class TelegramBotService:
         if all([(not check_customer), (not check_admin)]):
             await message.answer('Здравствуйте, мы с Вами не знакомы. \n'
                                  'Введите ваше ФИО, номер телефона, рост и вес.')
-            example_registration = '\n'.join(['Пример:', 'Иванов Иван Иванович', '+79020007126', '175', '80'])
+            example_registration = ' '.join(['Пример:', 'Иванов Иван Иванович', '+79020007126', '175', '80'])
             await self._bot.send_message(
                 chat_id=telegram_id,
                 text=example_registration
@@ -145,8 +145,8 @@ class TelegramBotService:
     async def _registration_step_1(self, message: Message, state: FSMContext):
         telegram_id = message.chat.id
 
-        message_user = message.text.split('\n')
-        if len(message_user) != 4:
+        message_user = message.text.split(' ')
+        if len(message_user) != 6:
             await message.answer('Введите как показано в примере')
             return
         name_message_user = message_user[0]
@@ -165,7 +165,7 @@ class TelegramBotService:
         result = f"""
 Данные успешно сохранены!
 Ваше ФИО: {new_user.name}
-Ваш номер телефона: {new_user.phone}
+Ваш номер телефона: {new_user.phone_number}
 Ваш вес: {new_user.weight}
 Ваш рост: {new_user.height}"""
 
