@@ -28,6 +28,7 @@ class DBAPICursor(_DBAPICursor):
             result = await super().async_execute(query, timeout, args, limit=0, many=False)
         return result
 
+
 AsyncpgDialect.cursor_cls = DBAPICursor
 
 
