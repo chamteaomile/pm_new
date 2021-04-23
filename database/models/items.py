@@ -9,9 +9,13 @@ from .db import db
 class Item(BaseModel):
     __tablename__ = 'items'
 
-    data = db.Column(db.String(), nullable=False, default='', server_default='', comment='Item ENG Name')
-    name = db.Column(db.String(), nullable=False, default='', server_default='', comment='Item RU Name')
-    price = db.Column(db.String(), nullable=False, default='', server_default='', comment='Item Price')
+    item_name = db.Column(db.String(), nullable=False, default='', server_default='', comment='Item Name')
+    item_category = db.Column(db.String(), nullable=False, default='', server_default='', comment='Category Name')
+    item_subcategory = db.Column(db.String(), nullable=False, default='', server_default='', comment='Subcategory Name')
+    item_time_quantity = db.Column(db.String(), nullable=False, default='', server_default='', comment='Time Quantity')
+    item_time_description = db.Column(db.String(), nullable=False, default='', server_default='',
+                                      comment='Time Description')
+    item_price = db.Column(db.String(), nullable=False, default='', server_default='', comment='Item Price')
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
