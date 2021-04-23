@@ -87,6 +87,10 @@ class TelegramBotService:
         self._dispatcher.register_callback_query_handler(self._book_step_2_1, text='done', state=Book.step_2)
         self._dispatcher.register_callback_query_handler(self._book_step_2_2, text='cancel', state=Book.step_2)
 
+        self._executor._prepare_polling()
+        await self._executor._startup_polling()
+        self.loop.create_task(self._dispatcher.start_polling(reset_webhook=True))
+
     async def _bot_start(self, message: Message):
         telegram_id = message.chat.id
 
