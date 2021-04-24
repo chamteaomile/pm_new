@@ -3,6 +3,47 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from database import Item, Order, User
 
 
+translation = {
+    "SCOOTER": "самокат",
+    "ROLLER": "ролики",
+    "WINTER_SKATES": "коньки",
+    "LONGBOARD": "лонгборд",
+    "CYCLECAR": "веломобиль",
+    "BIKE": "велосипед",
+    "TANDEM_BIKE": "двуместный велосипед",
+    "KIDS_CYCLECAR": "детский веломобиль",
+    "KIDS_TRICYCLE_SCOOTER": "детский трехколесный самокат",
+    "KIDS_BIKE_CHAIR": "детское велосипедное кресло",
+    "FOR_KIDS": "для детей",
+    "ELECTRIC_SINGLE_KIDS_CAR": "детский одноместный электромобиль",
+    "KIDS_ROLLER": "детские ролики",
+    "ADULT_MICRO_SCOOTER": "сегвей для взрослого",
+    "ADULT_ROLLER": "ролики для взрослого",
+    "ADULT_SUSP_YEDOO_SCOOTER": "самокат yeed для взрослого",
+    "TEEN_OXELO_SCOOTER": "самокат oxelo для подростка",
+    "TEEN_CITY_BIKE": "городской велосипед для подростка",
+    "SPORT_EQUIPMENT": "спортивный инвентарь",
+    "ELECTRICAL_EQUIP": "электрический инвентарь",
+    "SPEED_BIKE": "скоростной велосипед",
+    "CITY_BIKE": "городской велосипед",
+    "MALE_WINTER_SKATES": "мужские коньки",
+    "FEMALE_WINTER_SKATES": "женские коньки",
+    "NORMAL": "нормальные",
+    "SINGLE_CYCLECAR": "одноместный веломобиль",
+    "DOUBLE_CYCLECAR": "двуместный веломобиль",
+    "TRIPLE_CYCLECAR": "трехместный веломобиль",
+    "FIVE_SEATER_CYCLECAR": "пятиместный веломобиль",
+    "ELECTRIC_GEROSCHOOTER": "гироскутер",
+    "ELECTRIC_SEGWAY_MINI_LITE": "сигвей мини лайт",
+    "ELECTRIC_SEGWAY_MINI_PRO": "сигвей мини про",
+    "BALL": "мяч",
+    "ELECTRIC_SCOOTER": "электросамокат",
+    "In record": "заявка заполняется",
+    "In progress": "заявка в обработке",
+    "Accepted": "заявка принята"
+}
+
+
 async def get_kb_menu_for_customer():
     inline_btn_show_book = InlineKeyboardButton('Бронирование', callback_data='book')
     inline_btn_show_links = InlineKeyboardButton('Ссылки на другие соцсети', callback_data='links')
@@ -13,36 +54,64 @@ async def get_kb_menu_for_customer():
 
 async def get_kb_menu_for_admin():
     inline_btn_show_orders = InlineKeyboardButton('Посмотреть заявки', callback_data='show_orders')
+    inline_btn_update_db = InlineKeyboardButton('Обновить базу данных', callback_data='update_db')
     inline_kb_menu = InlineKeyboardMarkup(row_width=1)
-    inline_kb_menu.add(inline_btn_show_orders)
+    inline_kb_menu.add(inline_btn_show_orders, inline_btn_update_db)
     return inline_kb_menu
 
 
-async def get_kb_orders_menu():
+async def get_kb_category():
     inline_kb = InlineKeyboardMarkup(row_width=1)
-    all_orders = await Order.query.gino.all()
-    for order in all_orders:
-        user_data = await User.query.where(User.telegram_id == order.telegram_id).gino.first()
-        user_name = user_data.name.split(' ')
-        user_nick = user_name[0]
-        inline_kb.add(InlineKeyboardButton(f'{user_nick}: {order.ordered_item}', callback_data=f'{order.id}'))
+    all_categories = await Item.select('item_category').gino.all()
+    unique_categories = []
+    for a in all_categories:
+        if a in unique_categories:
+            continue
+        else:
+            unique_categories.append(a)
+    result_categories = [x[0] for x in unique_categories]
+    for category in result_categories:
+        inline_kb.add(InlineKeyboardButton(f'{translation[category]}', callback_data=f'{category}'))
     return inline_kb
 
 
-async def get_kb_status_menu():
-    inline_btn_in_progress = InlineKeyboardButton('В процессе', callback_data='in_progress')
-    inline_btn_done = InlineKeyboardButton('Сделано', callback_data='done')
-    inline_btn_canceled = InlineKeyboardButton('Отменено', callback_data='canceled')
-    inline_kb_menu = InlineKeyboardMarkup(row_width=1)
-    inline_kb_menu.add(inline_btn_in_progress, inline_btn_done, inline_btn_canceled)
-    return inline_kb_menu
-
-
-async def get_kb_items_to_book():
+async def get_kb_subcategory(category):
     inline_kb = InlineKeyboardMarkup(row_width=1)
-    all_items = await Item.query.gino.all()
-    for item in all_items:
-        inline_kb.add(InlineKeyboardButton(f'{item.name}', callback_data=f'{item.data}'))
+    all_subcategories = await Item.select('item_subcategory').where(Item.item_category == category).gino.all()
+    unique_subcategories = []
+    for a in all_subcategories:
+        if a in unique_subcategories:
+            continue
+        else:
+            unique_subcategories.append(a)
+    result_subcategories = [x[0] for x in unique_subcategories]
+    for subcategory in result_subcategories:
+        inline_kb.add(InlineKeyboardButton(f'{translation[subcategory]}', callback_data=f'{subcategory}'))
+    return inline_kb
+
+
+async def get_kb_time(category, subcategory):
+    inline_kb = InlineKeyboardMarkup(row_width=1)
+    all_time_description = await Item.select('item_time_description').where(Item.item_category == category and Item.item_subcategory == subcategory).gino.all()
+    all_time_quantity = await Item.select('item_time_quantity').where(Item.item_category == category and Item.item_subcategory == subcategory).gino.all()
+    unique_time_description = []
+    unique_time_quantity = []
+    for a in all_time_description:
+        if a in unique_time_description:
+            continue
+        else:
+            unique_time_description.append(a)
+    for b in all_time_quantity:
+        if b in unique_time_quantity:
+            continue
+        else:
+            unique_time_quantity.append(b)
+    result_time_description = [x[0] for x in unique_time_description]
+    result_time_quantity = [x[0] for x in unique_time_quantity]
+    i = 0
+    while i < len(result_time_quantity):
+        inline_kb.add(InlineKeyboardButton(f'{result_time_description[i]}', callback_data=f'{result_time_quantity[i]}'))
+        i += 1
     return inline_kb
 
 

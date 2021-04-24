@@ -9,7 +9,6 @@ from .db import db
 class Item(BaseModel):
     __tablename__ = 'items'
 
-    item_name = db.Column(db.String(), nullable=False, default='', server_default='', comment='Item Name')
     item_category = db.Column(db.String(), nullable=False, default='', server_default='', comment='Category Name')
     item_subcategory = db.Column(db.String(), nullable=False, default='', server_default='', comment='Subcategory Name')
     item_time_quantity = db.Column(db.String(), nullable=False, default='', server_default='', comment='Time Quantity')

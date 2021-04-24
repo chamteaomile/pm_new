@@ -8,7 +8,12 @@ class Order(BaseModel):
     __tablename__ = 'orders'
 
     telegram_id = db.Column(db.String(), nullable=True, comment='User Telegram ID')
-    ordered_item = db.Column(db.String(), nullable=False, default='', server_default='', comment='Ordered Item Name RU')
+    ordered_category = db.Column(db.String(), nullable=False, default='', server_default='',
+                                 comment='Ordered Item Category')
+    ordered_subcategory = db.Column(db.String(), nullable=False, default='', server_default='',
+                                    comment='Ordered Item Subcategory')
+    ordered_time = db.Column(db.String(), nullable=False, default='', server_default='',
+                             comment='Ordered Time')
     status = db.Column(db.String(), nullable=False, default='', server_default='', comment='Order Status')
 
     def __init__(self, *args, **kwargs):

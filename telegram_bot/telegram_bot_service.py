@@ -13,9 +13,10 @@ from aiogram.utils.executor import Executor
 from database import Admin, User, Item, Order
 
 from .keyboard import (
-    get_kb_order, get_kb_out_links, get_kb_items_to_book, get_kb_menu_for_customer, get_kb_menu_for_admin,
-    get_kb_orders_menu
+    get_kb_order, get_kb_out_links, get_kb_menu_for_customer, get_kb_menu_for_admin,
+    get_kb_category, get_kb_subcategory, get_kb_time, translation
 )
+from .prices_api import new_db
 
 
 logger = logging.getLogger('telegram_bot_service')
@@ -45,6 +46,8 @@ class Registration(StatesGroup):
 class Book(StatesGroup):
     step_1 = State()
     step_2 = State()
+    step_3 = State()
+    step_4 = State()
 
 
 class TelegramBotService:
@@ -88,11 +91,17 @@ class TelegramBotService:
 
         self._dispatcher.register_callback_query_handler(self._show_links, text='links')
         self._dispatcher.register_callback_query_handler(self._book, text='book')
-        # self._dispatcher.register_callback_query_handler(self._edit_order, text='show_orders')
+
+        self._dispatcher.register_callback_query_handler(self._update_db, text='update_db')
+        self._dispatcher.register_callback_query_handler(self._show_orders, text='show_orders')
 
         self._dispatcher.register_callback_query_handler(self._book_step_1, state=Book.step_1)
-        self._dispatcher.register_callback_query_handler(self._book_step_2_1, text='done', state=Book.step_2)
-        self._dispatcher.register_callback_query_handler(self._book_step_2_2, text='cancel', state=Book.step_2)
+        self._dispatcher.register_callback_query_handler(self._book_step_2, state=Book.step_2)
+        self._dispatcher.register_callback_query_handler(self._book_step_3, state=Book.step_3)
+        self._dispatcher.register_callback_query_handler(self._book_step_4_1, text='done', state=Book.step_4)
+        self._dispatcher.register_callback_query_handler(self._book_step_4_2, text='cancel', state=Book.step_4)
+
+        self._dispatcher.register_message_handler(self._all_messages, state='*')
 
         self._executor._prepare_polling()
         await self._executor._startup_polling()
@@ -104,16 +113,16 @@ class TelegramBotService:
         check_admin = await Admin.query.where(Admin.telegram_id == str(telegram_id)).gino.first()
         if check_admin:
             await message.answer(f'Здравствуй, {check_admin.name}')
-            await self._bot.send_message(telegram_id, 'Введите команду /menu посмотреть список доступных функций')
+            await self._bot.send_message(telegram_id, 'Введите команду /menu посмотреть список доступных функций.')
             return
 
         check_user = await User.query.where(User.telegram_id == str(telegram_id)).gino.first()
         if check_user:
             await message.answer(f'Здравствуйте, {check_user.name}')
-            await self._bot.send_message(telegram_id, 'Введите команду /menu посмотреть список доступных функций')
+            await self._bot.send_message(telegram_id, 'Введите команду /menu посмотреть список доступных функций.')
 
         if all([(not check_user), (not check_admin)]):
-            await message.answer('Здравствуйте, мы с Вами не знакомы. \n'
+            await message.answer('Здравствуйте. \n'
                                  'Введите ваше ФИО, номер телефона, рост и вес.')
             example_registration = ' '.join(['Пример:', 'Иванов Иван Иванович', '+79020007126', '175', '80'])
             await self._bot.send_message(
@@ -130,18 +139,22 @@ class TelegramBotService:
         check_admin = await Admin.query.where(Admin.telegram_id == str(telegram_id)).gino.first()
         if check_admin:
             inline_menu = await get_kb_menu_for_admin()
-            await message.answer('Здравствуйте, админстратор. Выберите интересующий вас пункт из меню ниже:',
+            await message.answer('Здравствуйте, админстратор. Выберите интересующий Вас пункт из меню ниже:',
                                  reply_markup=inline_menu)
 
         check_customer = await User.query.where(User.telegram_id == str(telegram_id)).gino.first()
         if check_customer:
+            order_data = await Order.query.where(Order.telegram_id == str(telegram_id) and Order.status == 'In record').gino.all()
+            if order_data:
+                for order in order_data:
+                    await order.delete()
             inline_menu = await get_kb_menu_for_customer()
-            await message.answer('Выберите интересующий вас пункт из меню ниже:',
+            await message.answer('Выберите интересующий Вас пункт из меню ниже:',
                                  reply_markup=inline_menu)
 
         if all([(not check_customer), (not check_admin)]):
-            await message.answer('Здравствуйте, мы с Вами не знакомы. \n'
-                                 'Введите ваше ФИО, номер телефона, рост и вес.')
+            await message.answer('Здравствуйте. \n'
+                                 'Введите Ваше ФИО, номер телефона, рост в сантиметрах и вес в килограммах.')
             example_registration = ' '.join(['Пример:', 'Иванов Иван Иванович', '+79020007126', '175', '80'])
             await self._bot.send_message(
                 chat_id=telegram_id,
@@ -149,23 +162,51 @@ class TelegramBotService:
             )
             await Registration.step_1.set()
 
-    # async def _edit_order(self, callback_query: CallbackQuery):
-    #     telegram_id = callback_query.id
-    #
-    #     await callback_query.answer(cache_time=60)
-    #     await self._bot.answer_callback_query(callback_query.id)
-    #     await callback_query.message.edit_reply_markup(reply_markup=None)
-    #
-    #     inline_menu = await get_kb_orders_menu()
-    #     await self._bot.send_message(telegram_id, 'Выберите интересующую вас заявку:',
-    #                                  reply_markup=inline_menu)
+    async def _update_db(self, callback_query: CallbackQuery):
+        await callback_query.answer(cache_time=60)
+        await self._bot.answer_callback_query(callback_query.id)
+        await callback_query.message.edit_reply_markup(reply_markup=None)
+
+        response = await new_db()
+        print(response)
+
+    async def _show_orders(self, callback_query: CallbackQuery):
+        telegram_id = callback_query.from_user.id
+
+        await callback_query.answer(cache_time=60)
+        await self._bot.answer_callback_query(callback_query.id)
+        await callback_query.message.edit_reply_markup(reply_markup=None)
+
+        orders_data = await Order.query.gino.all()
+        text_data = []
+        for order in orders_data:
+            k = 1
+            if order:
+                user_data = await User.query.where(User.telegram_id == order.telegram_id).gino.first()
+                text_data.append(f"""
+Заявка №{k}.                
+ФИО: {user_data.name}.
+Номер телефона: {user_data.phone_number}.
+Товар: {translation[order.ordered_subcategory]}.
+Категория: {translation[order.ordered_category]}.
+Длительность: {order.ordered_time}.
+Статус: {translation[order.status]}.
+                
+                """)
+                k += 1
+        text = '\n'.join(text_data)
+
+        await self._bot.send_message(
+            chat_id=telegram_id,
+            text=text
+        )
 
     async def _registration_step_1(self, message: Message, state: FSMContext):
         telegram_id = message.chat.id
 
         message_user = message.text.split(' ')
         if len(message_user) != 6:
-            await message.answer('Введите как показано в примере')
+            await message.answer('Введите как показано в примере!')
             return
         name_message_user = message_user[0]+' '+message_user[1]+' '+message_user[2]
         phone_number_message_user = message_user[3]
@@ -188,7 +229,7 @@ class TelegramBotService:
 Ваш рост: {new_user.height} см"""
 
         await self._bot.send_message(telegram_id, result)
-        await self._bot.send_message(telegram_id, 'Введите команду /menu посмотреть список доступных функций')
+        await self._bot.send_message(telegram_id, 'Введите команду /menu посмотреть список доступных функций.')
         await state.finish()
 
     async def _show_links(self, callback_query: CallbackQuery):
@@ -209,13 +250,51 @@ class TelegramBotService:
         await self._bot.answer_callback_query(callback_query.id)
         await callback_query.message.edit_reply_markup(reply_markup=None)
 
-        inline_kb = await get_kb_items_to_book()
-        await self._bot.send_message(telegram_id, 'Выберите интересующий вас инвентарь:',
+        inline_kb = await get_kb_category()
+        await self._bot.send_message(telegram_id, 'Выберите интересующую вас категорию:',
                                      reply_markup=inline_kb)
 
         await Book.step_1.set()
 
     async def _book_step_1(self, callback_query: CallbackQuery):
+        call = callback_query.data
+        telegram_id = callback_query.from_user.id
+
+        user_order = await Order.create(
+            telegram_id=str(telegram_id),
+            ordered_category=str(call),
+            status='In record'
+        )
+
+        await callback_query.answer(cache_time=60)
+        await self._bot.answer_callback_query(callback_query.id)
+        await callback_query.message.edit_reply_markup(reply_markup=None)
+
+        inline_kb = await get_kb_subcategory(str(user_order.ordered_category))
+        await self._bot.send_message(telegram_id, 'Выберите интересующий вас товар:',
+                                     reply_markup=inline_kb)
+
+        await Book.step_2.set()
+
+    async def _book_step_2(self, callback_query: CallbackQuery):
+        call = callback_query.data
+        telegram_id = callback_query.from_user.id
+
+        await callback_query.answer(cache_time=60)
+        await self._bot.answer_callback_query(callback_query.id)
+        await callback_query.message.edit_reply_markup(reply_markup=None)
+
+        user_order = await Order.query.where(Order.telegram_id == str(telegram_id)).gino.first()
+
+        await user_order.update(ordered_subcategory=str(call)).apply()
+
+        inline_kb = await get_kb_time(user_order.ordered_category, user_order.ordered_subcategory)
+
+        await self._bot.send_message(telegram_id, f'Выберите интересующее вас время:', reply_markup=inline_kb)
+
+        await Book.step_3.set()
+
+    async def _book_step_3(self, callback_query: CallbackQuery):
         call = callback_query.data
         telegram_id = callback_query.from_user.id
 
@@ -225,23 +304,20 @@ class TelegramBotService:
 
         inline_kb = await get_kb_order()
 
-        item_data = await Item.query.where(Item.data == str(call)).gino.first()
-        item_name = item_data.name
-        item_price = item_data.price
+        user_order = await Order.query.where(Order.telegram_id == str(telegram_id)).gino.first()
+        item_data = await Item.query.where(Item.item_time_quantity == str(call) and Item.item_category == user_order.ordered_category and Item.item_subcategory == user_order.ordered_subcategory).gino.first()
+        await user_order.update(ordered_time=item_data.item_time_description).apply()
 
-        await Order.create(
-            telegram_id=str(telegram_id),
-            ordered_item=item_name,
-            status='in treatment'
-        )
+        order_text = f"""
+Вы выбрали товар {translation[user_order.ordered_subcategory]} из категории {translation[user_order.ordered_category]}.
+Планируете забронировать на следующую длительность: {user_order.ordered_time}.
+Готовы оформить эту заявку?"""
 
-        await self._bot.send_message(telegram_id, f'Вы выбрали: {item_name}.\n'
-                                                  f'Стоимость бронирования этого инвентаря: {item_price}.\n'
-                                                  f'Хотите подать заявку?',
+        await self._bot.send_message(telegram_id, order_text,
                                      reply_markup=inline_kb)
-        await Book.step_2.set()
+        await Book.step_4.set()
 
-    async def _book_step_2_1(self, callback_query: CallbackQuery, state: FSMContext):
+    async def _book_step_4_1(self, callback_query: CallbackQuery, state: FSMContext):
         telegram_id = callback_query.from_user.id
 
         await callback_query.answer(cache_time=60)
@@ -254,14 +330,20 @@ class TelegramBotService:
         await self._bot.send_message(telegram_id, 'Заявка подана. Ожидайте звонка!')
         order_text = f"""
 Поступила заявка. Информация о заказчике:
-Имя: {user_data.name}.
+ФИО: {user_data.name}.
 Номер телефона: {user_data.phone_number}.
-Заявка на следующий инвентарь: {right_order.ordered_item}.
+Товар: {translation[right_order.ordered_subcategory]}.
+Категория: {translation[right_order.ordered_category]}.
+Длительность: {right_order.ordered_time}.
 Заказчик ждет вашего звонка!"""
         await self._bot.send_message(227448700, order_text)
+
+        await right_order.update(status='In progress').apply()
+        print(right_order.status)
+
         await state.finish()
 
-    async def _book_step_2_2(self, callback_query: CallbackQuery, state: FSMContext):
+    async def _book_step_4_2(self, callback_query: CallbackQuery, state: FSMContext):
         telegram_id = callback_query.from_user.id
 
         await callback_query.answer(cache_time=60)
@@ -271,7 +353,13 @@ class TelegramBotService:
         await self._bot.send_message(telegram_id, 'Заявка сброшена.')
         await self._bot.send_message(telegram_id, 'Введите команду /menu посмотреть список доступных функций')
 
-        wrong_order = await Order.query.where(Order.telegram_id == str(telegram_id)).gino.first()
-        wrong_order.delete()
+        wrong_order = await Order.query.where(Order.telegram_id == str(telegram_id) and Order.status == 'In record').gino.all()
+        await wrong_order.delete()
 
         await state.finish()
+
+    async def _all_messages(self, message: Message):
+        state = self._dispatcher.current_state(user=message.chat.id)
+        await state.reset_state()
+        await message.answer('Команда введена неверно.')
+        await self._bot.send_message(message.chat.id, 'Введите команду /menu посмотреть список доступных функций.')

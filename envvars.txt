@@ -1,3 +1,3 @@
-1777444572:AAEQJq4mhdx79M_9wqLvRsPVssZW_LGvFUA
-postgresql://postgres:1987jkmo@127.0.0.1:5432/prokat-mokat
-redis://:1987jkmo@127.0.0.1:6379/0
+export TELEGRAM_BOT_TOKEN=1777444572:AAEQJq4mhdx79M_9wqLvRsPVssZW_LGvFUA
+export PG_CONNECTION=postgresql://postgres:1987jkmo@127.0.0.1:5432/prokat-mokat
+export REDIS_CONNECTION=redis://:1987jkmo@127.0.0.1:6379/0
