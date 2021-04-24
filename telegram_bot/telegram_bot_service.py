@@ -178,7 +178,7 @@ class TelegramBotService:
         await callback_query.message.edit_reply_markup(reply_markup=None)
 
         orders_data = await Order.query.gino.all()
-        text_data = []
+        text_data = ["Список заявок:"]
         for order in orders_data:
             k = 1
             if order:
