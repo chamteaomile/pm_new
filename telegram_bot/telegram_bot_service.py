@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 from dataclasses import dataclass
 from typing import Optional
 
@@ -14,7 +15,7 @@ from database import Admin, User, Item, Order
 
 from .keyboard import (
     get_kb_order, get_kb_out_links, get_kb_menu_for_customer, get_kb_menu_for_admin,
-    get_kb_category, get_kb_subcategory, get_kb_time, translation
+    get_kb_category, get_kb_subcategory, get_kb_time, get_kb_edit_menu, translation
 )
 from .prices_api import new_db
 
@@ -37,10 +38,13 @@ default_telegram_bot_service_config = TelegramBotServiceConfig()
 class Registration(StatesGroup):
     step_1 = State()
 
-#
-# class Edit(StatesGroup):
-#     step_1 = State()
-#     step_2 = State()
+
+class Edit(StatesGroup):
+    step_1 = State()
+    step_name = State()
+    step_phone_number = State()
+    step_height = State()
+    step_weight = State()
 
 
 class Book(StatesGroup):
@@ -91,9 +95,21 @@ class TelegramBotService:
 
         self._dispatcher.register_callback_query_handler(self._show_links, text='links')
         self._dispatcher.register_callback_query_handler(self._book, text='book')
+        self._dispatcher.register_callback_query_handler(self._edit, text='edit')
 
         self._dispatcher.register_callback_query_handler(self._update_db, text='update_db')
         self._dispatcher.register_callback_query_handler(self._show_orders, text='show_orders')
+
+        self._dispatcher.register_callback_query_handler(self._edit_step_1_1, text='edit_name', state=Edit.step_1)
+        self._dispatcher.register_callback_query_handler(self._edit_step_1_2, text='edit_phone_number',
+                                                         state=Edit.step_1)
+        self._dispatcher.register_callback_query_handler(self._edit_step_1_3, text='edit_height', state=Edit.step_1)
+        self._dispatcher.register_callback_query_handler(self._edit_step_1_4, text='edit_weight', state=Edit.step_1)
+
+        self._dispatcher.register_message_handler(self._edit_step_name, state=Edit.step_name)
+        self._dispatcher.register_message_handler(self._edit_step_phone_number, state=Edit.step_phone_number)
+        self._dispatcher.register_message_handler(self._edit_step_height, state=Edit.step_height)
+        self._dispatcher.register_message_handler(self._edit_step_weight, state=Edit.step_weight)
 
         self._dispatcher.register_callback_query_handler(self._book_step_1, state=Book.step_1)
         self._dispatcher.register_callback_query_handler(self._book_step_2, state=Book.step_2)
@@ -123,13 +139,54 @@ class TelegramBotService:
 
         if all([(not check_user), (not check_admin)]):
             await message.answer('Здравствуйте. \n'
-                                 'Введите ваше ФИО, номер телефона, рост и вес.')
-            example_registration = ' '.join(['Пример:', 'Иванов Иван Иванович', '+79020007126', '175', '80'])
+                                 'Введите ваше ФИО, номер телефона, рост в сантиметрах и вес в килограммах.')
+            example_registration = ' '.join(['Пример:', 'Иванов Иван Иванович', '+79876543210', '190', '90'])
             await self._bot.send_message(
                 chat_id=telegram_id,
                 text=example_registration
             )
             await Registration.step_1.set()
+
+    async def _registration_step_1(self, message: Message, state: FSMContext):
+        telegram_id = message.chat.id
+
+        message_user = message.text.split(' ')
+        if len(message_user) != 6:
+            await message.answer('Введите как показано в примере!')
+            return
+
+        name_message_user = message_user[0]+' '+message_user[1]+' '+message_user[2]
+        phone_number_message_user = message_user[3]
+        height_message_user = message_user[4]
+        weight_message_user = message_user[5]
+
+        right_name = re.fullmatch(r'[А-ЯЁ]{1}[а-яё]{,15} [А-ЯЁ]{1}[а-яё]{,15} [А-ЯЁ]{1}[а-яё]{,15}', name_message_user)
+        right_number = re.fullmatch(r'\+7\d{10}', phone_number_message_user)
+        right_height = re.fullmatch(r'[1-2][0-9][0-9]', height_message_user)
+        right_weight = re.fullmatch(r'[1-2]?[0-9][0-9]', weight_message_user)
+
+        if all([(not right_weight), (not right_name), (not right_number), (not right_height)]):
+            await message.answer('Введите как показано в примере!')
+            return
+        else:
+            new_user = await User.create(
+                name=name_message_user,
+                phone_number=phone_number_message_user,
+                height=height_message_user,
+                weight=weight_message_user,
+                telegram_id=str(telegram_id)
+            )
+
+            result = f"""
+    Данные успешно сохранены!
+    Ваше ФИО: {new_user.name}
+    Ваш номер телефона: {new_user.phone_number}
+    Ваш рост: {new_user.height} см
+    Ваш вес: {new_user.weight} кг"""
+
+            await self._bot.send_message(telegram_id, result)
+            await self._bot.send_message(telegram_id, 'Введите команду /menu посмотреть список доступных функций.')
+            await state.finish()
 
     async def _show_menu(self, message: Message):
         telegram_id = message.chat.id
@@ -155,7 +212,7 @@ class TelegramBotService:
         if all([(not check_customer), (not check_admin)]):
             await message.answer('Здравствуйте. \n'
                                  'Введите Ваше ФИО, номер телефона, рост в сантиметрах и вес в килограммах.')
-            example_registration = ' '.join(['Пример:', 'Иванов Иван Иванович', '+79020007126', '175', '80'])
+            example_registration = ' '.join(['Пример:', 'Иванов Иван Иванович', '+79876543210', '190', '90'])
             await self._bot.send_message(
                 chat_id=telegram_id,
                 text=example_registration
@@ -179,20 +236,19 @@ class TelegramBotService:
 
         orders_data = await Order.query.gino.all()
         text_data = ["Список заявок:"]
+        k = 1
         for order in orders_data:
-            k = 1
             if order:
                 user_data = await User.query.where(User.telegram_id == order.telegram_id).gino.first()
                 text_data.append(f"""
 Заявка №{k}.                
 ФИО: {user_data.name}.
 Номер телефона: {user_data.phone_number}.
+Рост и вес: {user_data.height} см и  {user_data.weight} кг.
 Товар: {translation[order.ordered_subcategory]}.
 Категория: {translation[order.ordered_category]}.
 Длительность: {order.ordered_time}.
-Статус: {translation[order.status]}.
-                
-                """)
+Статус: {translation[order.status]}.""")
                 k += 1
         text = '\n'.join(text_data)
 
@@ -200,37 +256,6 @@ class TelegramBotService:
             chat_id=telegram_id,
             text=text
         )
-
-    async def _registration_step_1(self, message: Message, state: FSMContext):
-        telegram_id = message.chat.id
-
-        message_user = message.text.split(' ')
-        if len(message_user) != 6:
-            await message.answer('Введите как показано в примере!')
-            return
-        name_message_user = message_user[0]+' '+message_user[1]+' '+message_user[2]
-        phone_number_message_user = message_user[3]
-        height_message_user = message_user[4]
-        weight_message_user = message_user[5]
-
-        new_user = await User.create(
-            name=name_message_user,
-            phone_number=phone_number_message_user,
-            height=height_message_user,
-            weight=weight_message_user,
-            telegram_id=str(telegram_id)
-        )
-
-        result = f"""
-Данные успешно сохранены!
-Ваше ФИО: {new_user.name}
-Ваш номер телефона: {new_user.phone_number}
-Ваш вес: {new_user.weight} кг
-Ваш рост: {new_user.height} см"""
-
-        await self._bot.send_message(telegram_id, result)
-        await self._bot.send_message(telegram_id, 'Введите команду /menu посмотреть список доступных функций.')
-        await state.finish()
 
     async def _show_links(self, callback_query: CallbackQuery):
         telegram_id = callback_query.from_user.id
@@ -255,6 +280,158 @@ class TelegramBotService:
                                      reply_markup=inline_kb)
 
         await Book.step_1.set()
+
+    async def _edit(self, callback_query: CallbackQuery):
+        telegram_id = callback_query.from_user.id
+
+        await callback_query.answer(cache_time=60)
+        await self._bot.answer_callback_query(callback_query.id)
+        await callback_query.message.edit_reply_markup(reply_markup=None)
+
+        inline_kb = await get_kb_edit_menu()
+        await self._bot.send_message(telegram_id, 'Выберите интересующий вас пункт:', reply_markup=inline_kb)
+
+        await Edit.step_1.set()
+
+    async def _edit_step_1_1(self, callback_query: CallbackQuery):
+        telegram_id = callback_query.from_user.id
+
+        await callback_query.answer(cache_time=60)
+        await self._bot.answer_callback_query(callback_query.id)
+        await callback_query.message.edit_reply_markup(reply_markup=None)
+
+        await self._bot.send_message(telegram_id, 'Введите Ваше ФИО:\n'
+                                                  'Пример: Иванов Иван Иванович')
+
+        await Edit.step_name.set()
+
+    async def _edit_step_1_2(self, callback_query: CallbackQuery):
+        telegram_id = callback_query.from_user.id
+
+        await callback_query.answer(cache_time=60)
+        await self._bot.answer_callback_query(callback_query.id)
+        await callback_query.message.edit_reply_markup(reply_markup=None)
+
+        await self._bot.send_message(telegram_id, 'Введите Ваш номер телефона:\n'
+                                                  'Пример: +79876543210')
+
+        await Edit.step_phone_number.set()
+
+    async def _edit_step_1_3(self, callback_query: CallbackQuery):
+        telegram_id = callback_query.from_user.id
+
+        await callback_query.answer(cache_time=60)
+        await self._bot.answer_callback_query(callback_query.id)
+        await callback_query.message.edit_reply_markup(reply_markup=None)
+
+        await self._bot.send_message(telegram_id, 'Введите Ваш рост в сантиметрах:\n'
+                                                  'Пример: 190')
+
+        await Edit.step_height.set()
+
+    async def _edit_step_1_4(self, callback_query: CallbackQuery):
+        telegram_id = callback_query.from_user.id
+
+        await callback_query.answer(cache_time=60)
+        await self._bot.answer_callback_query(callback_query.id)
+        await callback_query.message.edit_reply_markup(reply_markup=None)
+
+        await self._bot.send_message(telegram_id, 'Введите Ваш вес в килограммах:\n'
+                                                  'Пример: 80')
+
+        await Edit.step_weight.set()
+
+    async def _edit_step_name(self, message: Message, state: FSMContext):
+        telegram_id = message.chat.id
+
+        name_message_user = message.text
+
+        right_name = re.fullmatch(r'[А-ЯЁ]{1}[а-яё]{,15} [А-ЯЁ]{1}[а-яё]{,15} [А-ЯЁ]{1}[а-яё]{,15}', name_message_user)
+        if not right_name:
+            await message.answer('Введите как показано в примере!')
+            return
+        else:
+            user_data = await User.query.where(User.telegram_id == str(telegram_id)).gino.first()
+            await user_data.update(name=name_message_user).apply()
+
+            await self._bot.send_message(telegram_id, f"""
+Данные успешно обновлены!
+    Ваше ФИО: {user_data.name}
+    Ваш номер телефона: {user_data.phone_number}
+    Ваш рост: {user_data.height} см
+    Ваш вес: {user_data.weight} кг""")
+            await self._bot.send_message(telegram_id, 'Введите команду /menu посмотреть список доступных функций.')
+
+            await state.finish()
+
+    async def _edit_step_phone_number(self, message: Message, state: FSMContext):
+        telegram_id = message.chat.id
+
+        phone_number_message_user = message.text
+
+        right_number = re.fullmatch(r'\+7\d{10}', phone_number_message_user)
+        if not right_number:
+            await message.answer('Введите как показано в примере!')
+            return
+        else:
+            user_data = await User.query.where(User.telegram_id == str(telegram_id)).gino.first()
+            await user_data.update(phone_number=str(phone_number_message_user)).apply()
+
+            await self._bot.send_message(telegram_id, f"""
+Данные успешно обновлены!
+    Ваше ФИО: {user_data.name}
+    Ваш номер телефона: {user_data.phone_number}
+    Ваш рост: {user_data.height} см
+    Ваш вес: {user_data.weight} кг""")
+            await self._bot.send_message(telegram_id, 'Введите команду /menu посмотреть список доступных функций.')
+
+            await state.finish()
+
+    async def _edit_step_height(self, message: Message, state: FSMContext):
+        telegram_id = message.chat.id
+
+        height_message_user = message.text
+
+        right_height = re.fullmatch(r'[1-2][0-9][0-9]', height_message_user)
+        if not right_height:
+            await message.answer('Введите как показано в примере!')
+            return
+        else:
+            user_data = await User.query.where(User.telegram_id == str(telegram_id)).gino.first()
+            await user_data.update(height=str(height_message_user)).apply()
+
+            await self._bot.send_message(telegram_id, f"""
+Данные успешно обновлены!
+    Ваше ФИО: {user_data.name}
+    Ваш номер телефона: {user_data.phone_number}
+    Ваш рост: {user_data.height} см
+    Ваш вес: {user_data.weight} кг""")
+            await self._bot.send_message(telegram_id, 'Введите команду /menu посмотреть список доступных функций.')
+
+            await state.finish()
+
+    async def _edit_step_weight(self, message: Message, state: FSMContext):
+        telegram_id = message.chat.id
+
+        weight_message_user = message.text
+
+        right_weight = re.fullmatch(r'[1-2]?[0-9][0-9]', weight_message_user)
+        if not right_weight:
+            await message.answer('Введите как показано в примере!')
+            return
+        else:
+            user_data = await User.query.where(User.telegram_id == str(telegram_id)).gino.first()
+            await user_data.update(weight=str(weight_message_user)).apply()
+
+            await self._bot.send_message(telegram_id, f"""
+Данные успешно обновлены!
+    Ваше ФИО: {user_data.name}
+    Ваш номер телефона: {user_data.phone_number}
+    Ваш рост: {user_data.height} см
+    Ваш вес: {user_data.weight} кг""")
+            await self._bot.send_message(telegram_id, 'Введите команду /menu посмотреть список доступных функций.')
+
+            await state.finish()
 
     async def _book_step_1(self, callback_query: CallbackQuery):
         call = callback_query.data
@@ -330,11 +507,12 @@ class TelegramBotService:
         await self._bot.send_message(telegram_id, 'Заявка подана. Ожидайте звонка!')
         order_text = f"""
 Поступила заявка. Информация о заказчике:
-ФИО: {user_data.name}.
-Номер телефона: {user_data.phone_number}.
-Товар: {translation[right_order.ordered_subcategory]}.
-Категория: {translation[right_order.ordered_category]}.
-Длительность: {right_order.ordered_time}.
+ФИО: {user_data.name}
+Номер телефона: {user_data.phone_number}
+Рост и вес: {user_data.height} см и {user_data.weight} кг
+Заказанный товар: {translation[right_order.ordered_subcategory]}
+Категория товара: {translation[right_order.ordered_category]}
+Длительность бронирования: {right_order.ordered_time}
 Заказчик ждет вашего звонка!"""
         await self._bot.send_message(227448700, order_text)
 

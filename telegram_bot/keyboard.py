@@ -45,10 +45,11 @@ translation = {
 
 
 async def get_kb_menu_for_customer():
+    inline_btn_edit_user_data = InlineKeyboardButton('Изменить свои данные', callback_data='edit')
     inline_btn_show_book = InlineKeyboardButton('Бронирование', callback_data='book')
     inline_btn_show_links = InlineKeyboardButton('Ссылки на другие соцсети', callback_data='links')
     inline_kb_menu = InlineKeyboardMarkup(row_width=1)
-    inline_kb_menu.add(inline_btn_show_book, inline_btn_show_links)
+    inline_kb_menu.add(inline_btn_edit_user_data, inline_btn_show_book, inline_btn_show_links)
     return inline_kb_menu
 
 
@@ -57,6 +58,17 @@ async def get_kb_menu_for_admin():
     inline_btn_update_db = InlineKeyboardButton('Обновить базу данных', callback_data='update_db')
     inline_kb_menu = InlineKeyboardMarkup(row_width=1)
     inline_kb_menu.add(inline_btn_show_orders, inline_btn_update_db)
+    return inline_kb_menu
+
+
+async def get_kb_edit_menu():
+    inline_btn_edit_name = InlineKeyboardButton('Изменить ФИО', callback_data='edit_name')
+    inline_btn_edit_phone_number = InlineKeyboardButton('Изменить номер телефона', callback_data='edit_phone_number')
+    inline_btn_edit_height = InlineKeyboardButton('Изменить рост', callback_data='edit_height')
+    inline_btn_edit_weight = InlineKeyboardButton('Изменить вес', callback_data='edit_weight')
+    inline_kb_menu = InlineKeyboardMarkup(row_width=1)
+    inline_kb_menu.add(inline_btn_edit_name, inline_btn_edit_phone_number, inline_btn_edit_height,
+                       inline_btn_edit_weight)
     return inline_kb_menu
 
 
