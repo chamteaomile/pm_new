@@ -1,0 +1,11 @@
+version: '0.1.0'
+
+services:
+    telegram_bot:
+        build: .
+        image: registry.gitlab.com/sandlabs/mokat-telegram-bot:feature-init
+        restart: unless-stopped
+        environment:
+            PG_CONNECTION: postgresql://postgres:1987jkmo@127.0.0.1:5432/prokat-mokat
+            REDIS_CONNECTION: redis://:1987jkmo@127.0.0.1:6379/0
+            TELEGRAM_BOT_TOKEN: 1777444572:AAEQJq4mhdx79M_9wqLvRsPVssZW_LGvFUA\

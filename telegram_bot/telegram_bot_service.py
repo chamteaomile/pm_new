@@ -525,12 +525,12 @@ class TelegramBotService:
 Длительность бронирования: {right_order.ordered_time}
 Заказчик ждет вашего звонка!"""
 
-        admin_data = await Admin.query.select(Admin.telegram_id).gino.all()
-        print(admin_data)
-        await self._bot.send_message(227448700, order_text)
+        admin_data = await Admin.select('telegram_id').gino.all()
+        admins = [x[0] for x in admin_data]
+        for admin in admins:
+            await self._bot.send_message(admin, order_text)
 
         await right_order.update(status='In progress').apply()
-        print(right_order.status)
 
         await state.finish()
 
