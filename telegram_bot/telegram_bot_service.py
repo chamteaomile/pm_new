@@ -160,7 +160,7 @@ class TelegramBotService:
         height_message_user = message_user[4]
         weight_message_user = message_user[5]
 
-        right_name = re.fullmatch(r'[А-ЯЁ]{1}[а-яё]{,15} [А-ЯЁ]{1}[а-яё]{,15} [А-ЯЁ]{1}[а-яё]{,15}', name_message_user)
+        right_name = re.fullmatch(r'[А-ЯЁ]{1}[а-яё]{1,15}(-[А-ЯЁ]{1}[а-яё]{1,15})? [А-ЯЁ]{1}[а-яё]{1,15}(-[А-ЯЁ]{1}[а-яё]{1,15})? [А-ЯЁ]{1}[а-яё]{1,15}(-[А-ЯЁ]{1}[а-яё]{1,15})?', name_message_user)
         right_number = re.fullmatch(r'\+7\d{10}', phone_number_message_user)
         right_height = re.fullmatch(r'[1-2][0-9][0-9]', height_message_user)
         right_weight = re.fullmatch(r'[1-2]?[0-9][0-9]', weight_message_user)
@@ -288,8 +288,18 @@ class TelegramBotService:
         await self._bot.answer_callback_query(callback_query.id)
         await callback_query.message.edit_reply_markup(reply_markup=None)
 
+        user_data = await User.query.where(User.telegram_id == str(telegram_id)).gino.first()
+
         inline_kb = await get_kb_edit_menu()
-        await self._bot.send_message(telegram_id, 'Выберите интересующий вас пункт:', reply_markup=inline_kb)
+        text = f"""
+Ваши данные:
+ФИО: {user_data.name}
+Номер телефона: {user_data.phone_number}
+Рост: {user_data.height}
+Вес: {user_data.weight}
+Выберите интересующий Вас пункт.
+Чтобы вернуться в меню используйте команду /menu"""
+        await self._bot.send_message(telegram_id, text, reply_markup=inline_kb)
 
         await Edit.step_1.set()
 
@@ -346,7 +356,7 @@ class TelegramBotService:
 
         name_message_user = message.text
 
-        right_name = re.fullmatch(r'[А-ЯЁ]{1}[а-яё]{,15} [А-ЯЁ]{1}[а-яё]{,15} [А-ЯЁ]{1}[а-яё]{,15}', name_message_user)
+        right_name = re.fullmatch(r'[А-ЯЁ]{1}[а-яё]{1,15}(-[А-ЯЁ]{1}[а-яё]{1,15})? [А-ЯЁ]{1}[а-яё]{1,15}(-[А-ЯЁ]{1}[а-яё]{1,15})? [А-ЯЁ]{1}[а-яё]{1,15}(-[А-ЯЁ]{1}[а-яё]{1,15})?', name_message_user)
         if not right_name:
             await message.answer('Введите как показано в примере!')
             return
@@ -514,6 +524,9 @@ class TelegramBotService:
 Категория товара: {translation[right_order.ordered_category]}
 Длительность бронирования: {right_order.ordered_time}
 Заказчик ждет вашего звонка!"""
+
+        admin_data = await Admin.query.select(Admin.telegram_id).gino.all()
+        print(admin_data)
         await self._bot.send_message(227448700, order_text)
 
         await right_order.update(status='In progress').apply()
